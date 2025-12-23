@@ -1,0 +1,45 @@
+# SNI Proxy Configuration Example
+# Copy this file to config.yaml and modify as needed
+
+# Server settings
+listen: ":443"          # Address to listen on
+default_port: 443       # Default upstream port
+
+# Timeouts
+connect_timeout: 10s    # Timeout for connecting to upstream servers
+idle_timeout: 60s       # Idle connection timeout
+
+# Logging
+log_level: info         # Log level: debug, info, warn, error
+log_file: ""            # Log file path (empty for stdout)
+
+# Performance tuning
+buffer_size: 32768      # Buffer size for data transfer (32KB)
+max_concurrent: 10000   # Maximum concurrent connections
+
+# Access Control
+# If allowed_hosts is empty, all hosts are allowed (except denied_hosts)
+# Supports wildcards: *.example.com matches any subdomain
+allowed_hosts:
+  # - "*.example.com"
+  # - "api.myservice.io"
+  # - "secure.domain.org"
+
+denied_hosts:
+  # - "blocked.example.com"
+  # - "*.malware.com"
+
+# Custom routing rules
+# Routes are checked in order, first match wins
+routes:
+  # Route internal services to internal load balancer
+  # - match: "*.internal.example.com"
+  #   target: "internal-lb.local:443"
+
+  # Route API traffic to API gateway
+  # - match: "api.example.com"
+  #   target: "api-gateway:8443"
+
+  # Route with custom port
+  # - match: "legacy.example.com"
+  #   target: "legacy-server:8080"
