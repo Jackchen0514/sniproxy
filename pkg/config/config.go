@@ -39,7 +39,14 @@ type Config struct {
 // Route defines a custom routing rule
 type Route struct {
 	Match  string `yaml:"match"`  // Hostname pattern to match (supports wildcards)
-	Target string `yaml:"target"` // Target address (host:port)
+	Target string `yaml:"target"` // Target address (host:port), empty means use SNI hostname
+	Proxy  string `yaml:"proxy"`  // Proxy URL (e.g., socks5://127.0.0.1:40000), empty means direct
+}
+
+// RouteResult contains the routing decision for a hostname
+type RouteResult struct {
+	Target string // Target address (host:port)
+	Proxy  string // Proxy URL (empty = direct connection)
 }
 
 // DefaultConfig returns a configuration with sensible defaults
@@ -143,19 +150,30 @@ func (c *Config) IsHostAllowed(hostname string) bool {
 	return false
 }
 
-// GetTargetForHost returns the target address for a given hostname
-func (c *Config) GetTargetForHost(hostname string) string {
+// GetRouteForHost returns the routing decision for a given hostname
+func (c *Config) GetRouteForHost(hostname string) RouteResult {
 	hostname = strings.ToLower(hostname)
+	defaultTarget := fmt.Sprintf("%s:%d", hostname, c.DefaultPort)
 
 	// Check custom routes first
 	for _, route := range c.Routes {
 		if matchHostPattern(route.Match, hostname) {
-			return route.Target
+			target := route.Target
+			if target == "" {
+				target = defaultTarget
+			}
+			return RouteResult{
+				Target: target,
+				Proxy:  route.Proxy,
+			}
 		}
 	}
 
-	// Default: use the hostname with default port
-	return fmt.Sprintf("%s:%d", hostname, c.DefaultPort)
+	// Default: direct connection to hostname with default port
+	return RouteResult{
+		Target: defaultTarget,
+		Proxy:  "",
+	}
 }
 
 // matchHostPattern checks if a hostname matches a pattern (supports wildcards)

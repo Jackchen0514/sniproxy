@@ -31,15 +31,28 @@ denied_hosts:
 
 # Custom routing rules
 # Routes are checked in order, first match wins
+# Each route can specify:
+#   - match: hostname pattern (supports wildcards)
+#   - target: target address (optional, defaults to SNI hostname:default_port)
+#   - proxy: SOCKS5 proxy URL (optional, empty means direct connection)
 routes:
-  # Route internal services to internal load balancer
+  # Route api.example.com through SOCKS5 proxy
+  - match: "api.example.com"
+    proxy: "socks5://127.0.0.1:40000"
+
+  # Route other *.example.com directly (no proxy)
+  - match: "*.example.com"
+    # No proxy specified = direct connection
+
+  # Route with SOCKS5 proxy and custom target
+  # - match: "secure.service.io"
+  #   target: "backend.service.io:8443"
+  #   proxy: "socks5://user:pass@proxy.example.com:1080"
+
+  # Route internal services to internal load balancer (direct)
   # - match: "*.internal.example.com"
   #   target: "internal-lb.local:443"
 
-  # Route API traffic to API gateway
-  # - match: "api.example.com"
-  #   target: "api-gateway:8443"
-
-  # Route with custom port
+  # Route with custom port (direct)
   # - match: "legacy.example.com"
   #   target: "legacy-server:8080"

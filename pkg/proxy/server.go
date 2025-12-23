@@ -222,24 +222,53 @@ func (s *Server) handleConnection(clientConn net.Conn) {
 		return
 	}
 
-	// Get target address
-	target := s.config.GetTargetForHost(serverName)
-	s.logger.Debug("Connecting to upstream %s for %s", target, serverName)
+	// Get routing decision
+	route := s.config.GetRouteForHost(serverName)
+	target := route.Target
 
-	// Connect to upstream server
-	dialer := &net.Dialer{
-		Timeout: s.config.ConnectTimeout,
-	}
+	// Connect to upstream server (directly or via proxy)
+	var upstreamConn net.Conn
 
-	upstreamConn, err := dialer.DialContext(s.shutdownCtx, "tcp", target)
-	if err != nil {
-		s.logger.Error("Failed to connect to upstream %s: %v", target, err)
-		atomic.AddInt64(&s.stats.FailedConnections, 1)
-		return
+	if route.Proxy != "" {
+		// Connect via SOCKS5 proxy
+		s.logger.Debug("Connecting to %s via proxy %s", target, route.Proxy)
+
+		socks5Dialer, err := NewSOCKS5Dialer(route.Proxy, s.config.ConnectTimeout)
+		if err != nil {
+			s.logger.Error("Failed to create SOCKS5 dialer for %s: %v", route.Proxy, err)
+			atomic.AddInt64(&s.stats.FailedConnections, 1)
+			return
+		}
+
+		upstreamConn, err = socks5Dialer.DialContext(s.shutdownCtx, "tcp", target)
+		if err != nil {
+			s.logger.Error("Failed to connect to %s via proxy %s: %v", target, route.Proxy, err)
+			atomic.AddInt64(&s.stats.FailedConnections, 1)
+			return
+		}
+	} else {
+		// Direct connection
+		s.logger.Debug("Connecting directly to upstream %s", target)
+
+		dialer := &net.Dialer{
+			Timeout: s.config.ConnectTimeout,
+		}
+
+		var err error
+		upstreamConn, err = dialer.DialContext(s.shutdownCtx, "tcp", target)
+		if err != nil {
+			s.logger.Error("Failed to connect to upstream %s: %v", target, err)
+			atomic.AddInt64(&s.stats.FailedConnections, 1)
+			return
+		}
 	}
 	defer upstreamConn.Close()
 
-	s.logger.Info("Proxying %s -> %s", clientAddr, target)
+	if route.Proxy != "" {
+		s.logger.Info("Proxying %s -> %s (via %s)", clientAddr, target, route.Proxy)
+	} else {
+		s.logger.Info("Proxying %s -> %s (direct)", clientAddr, target)
+	}
 
 	// Clear the deadline for the data transfer phase
 	clientConn.SetReadDeadline(time.Time{})
